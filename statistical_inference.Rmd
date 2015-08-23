@@ -3,7 +3,7 @@ title: "Statistical Inference Project"
 output: html_document
 ---
 
-# Part 1 - Exponential Distribution
+# Part 1 - Exponential Distribution Simulation
 We simulate the exponential distribution drawing 40 samples each time and getting the mean and lambda = 0.2 for 1000 times.
 ```{r message=FALSE,warning=FALSE,cache=FALSE}
 set.seed(1001)
@@ -61,8 +61,8 @@ $\hat{\lambda}_{upp} = \hat{\lambda}(1 + \frac{1.96}{\sqrt{n}})$.
 As we can see $\hat{\lambda}$ is almost 5,
 the average of the sample mean falls within the confidence interval at least 95% of the time.
 
-# Part 2
-## Overiew
+# Part 2 - Inferential Statistics for Tooth Growth Dataset
+## Overview
 
 In this section we analyze the `TootGrowth` dataset which describes the effect of vitamin C on tooth growth in guinea pigs
 
@@ -167,7 +167,7 @@ The null hypothesis in all cases is that the average difference in tooth length 
 We show the three 3 pairwise comparisons.
 `null_hypothesis` shows which null hypothesis was used for the respective t-test
 
-```{r echo = FALSE}
+```{r}
 
 pairwise_results <- t.test(ToothGrowth$len[ToothGrowth$dose == 2],
        ToothGrowth$len[ToothGrowth$dose == 1]) %>% 
@@ -201,18 +201,17 @@ print.data.frame(pairwise_results)
 
 ```
 
-In all three cases the p-value is smaller than the significance level 0.05 which means we reject the null hypothesis each time. The data provides strong evidence that the average tooth length of guinea pigs is different for each dose level. 
+In all these cases the p-value is much smaller than 0.05 so we reject the null hypothesis for all cases.
 
 Interpreting the first row of the table for illustriation:
 
-We are 95% confident that the average tooth length of guinea pigs who received a 2mg dose of vitamin C is on average `r round(pairwise_results$conf.low[1], 2)` to `r round(pairwise_results$conf.high[1], 2)` millimeters higher than those who received a 1mg dose.
+We can say at least with a confidence level of 95% that the average tooth length of guinea pigs who received a 2mg dose of vitamin C is on average `r round(pairwise_results$conf.low[1], 2)` to `r round(pairwise_results$conf.high[1], 2)` millimeters higher than those who received a 1mg dose.
 
 
 # Conclusions
 
-We were able to show that the observed difference of tooth length mean across supplement types is statistically not different from 0.
+We showed that doses make significant differences in tooth growth.
+But we are not sure about the effect of supplement types on tooth growth.
+As future work, the combination of doses and supplements could be studied.
 
-However, we were able to highlight the fact that tooth length indeed varies across groups of dose levels and that all of those differences are statistical and pramatically significant. 
-
-A latter study might take into account pairwise t-tests of the different supplement types/dose level combinations.
 
