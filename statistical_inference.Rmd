@@ -1,0 +1,218 @@
+---
+title: "Statistical Inference Project"
+output: html_document
+---
+
+# Part 1 - Exponential Distribution
+We simulate the exponential distribution drawing 40 samples each time and getting the mean and lambda = 0.2 for 1000 times.
+```{r message=FALSE,warning=FALSE,cache=FALSE}
+set.seed(1001)
+lambda <- 0.2
+num_of_sims <- 1000
+sample_size <- 40
+mns = NULL
+# Means of means
+for(i in 1 : num_of_sims) mns = c(mns, mean(rexp(sample_size, rate = lambda)))
+hist(mns, breaks = 50, prob = TRUE, main = "Distribution of means of samples from the exponential distribution", xlab = "")
+# density of the means of samples
+lines(density(mns), col = "blue", lty = 1, lwd = 5)
+# Theoretical mean of distribution
+abline(v=1/lambda, col="red", lty=2, lwd = 5)
+x <- seq(min(mns), max(mns), length=100)
+y <- dnorm(x, mean=1/lambda, sd=(1/lambda/sqrt(sample_size)))
+# Normal distribution
+lines(x, y, pch=22, col="black", lty=3, lwd = 5)
+legend('topright', c("Simulation", "Theoretical Center", "Normal distribution"), lty=c(1,2,3), col=c("blue", "red","black"))
+```
+
+As we can see the sample means is centered at `r mean(mns)`,
+the theoretical center of the distribution is $\frac{1}{\lambda}$ = `r 1/lambda`,
+the variance of sample means is `r var(mns)` where the theoretical variance
+of the distribution is $\frac{\sigma^2}{n} = \frac{1}{\lambda^2\cdot n} = \frac{1}{0.04 \cdot 40}$ =
+`r 1/(0.04 * 40)`.
+
+We draw a q-q plot to show normality:
+```{r message=FALSE,warning=FALSE,cache=FALSE}
+qqnorm(mns); qqline(mns)
+```
+
+Now we will compute the confidence interval:
+Finally, let's evaluate the coverage of the confidence interval for
+$1/\lambda = \bar{X} \pm 1.96 \frac{S}{\sqrt{n}}$
+
+```{r echo=FALSE}
+lambda_vals <- seq(4, 6, by=0.01)
+coverage <- sapply(lambda_vals, function(lamb) {
+    mu_hats <- rowMeans(matrix(rexp(sample_size*num_of_sims, rate=0.2),
+                               num_of_sims, sample_size))
+    ll <- mu_hats - qnorm(0.975) * sqrt(1/lambda**2/sample_size)
+    ul <- mu_hats + qnorm(0.975) * sqrt(1/lambda**2/sample_size)
+    mean(ll < lamb & ul > lamb)
+})
+
+library(ggplot2)
+qplot(lambda_vals, coverage) + geom_hline(yintercept=0.95)
+```
+
+The confidence intervals at 95% for the rate parameter ($\lambda$) to be estimated
+($\hat{\lambda}$) are
+$\hat{\lambda}_{low} = \hat{\lambda}(1 - \frac{1.96}{\sqrt{n}})$ agnd
+$\hat{\lambda}_{upp} = \hat{\lambda}(1 + \frac{1.96}{\sqrt{n}})$.
+As we can see $\hat{\lambda}$ is almost 5,
+the average of the sample mean falls within the confidence interval at least 95% of the time.
+
+# Part 2
+## Overiew
+
+In this section we analyze the `TootGrowth` dataset which describes the effect of vitamin C on tooth growth in guinea pigs
+
+The `ToothGrowth` dataset consists of 60 observations of 3 variables:
+
+* `len`: Tooth length in millimeters (numeric variable)
+* `supp`: Supplement type (factor variable with levels VC and OJ)
+* `dose`: Dose in milligrams (numeric variable)
+
+Even though `dose` is a numeric variable we will treat it as a factor in the subsequent analysis because only three dose levels of Vitamin C (0.5, 1, and  2 mg) were used.
+
+Here's the structure and summary of the dataset:
+```{r}
+str(ToothGrowth)
+summary(ToothGrowth)
+```
+
+Also how many pigs were assigned to each dose (10 for each):
+```{r echo=FALSE}
+with(ToothGrowth, table(dose, supp))
+```
+
+## Exploratory Data Analysis (EDA)
+
+We treat the dose as a factor since there are only 3 values.
+We use ggplot to make some plots to explore the relationships between tooth length and supplement and tooth length and dose:
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+
+library(ggplot2)
+library(dplyr)
+library(broom)
+library(wesanderson)
+library(grid)
+
+```
+
+```{r echo=FALSE, fig.width=7, fig.height=2.5, fig.align='center'}
+
+g_len_vs_supp <- ggplot(ToothGrowth, aes(supp, len)) + 
+  geom_boxplot() +
+  xlab('Supplement type') +
+  ylab('Tooth length (mm)') +
+  ggtitle('Tooth length vs supplement type')
+
+g_len_vs_dose <- ggplot(ToothGrowth, aes(as.factor(dose), len)) + 
+  geom_boxplot() +
+  xlab('Dose (mg)') +
+  ylab('Tooth length (mm)') +
+  ggtitle('Tooth length vs dose level')
+
+# Print the ggplots side by side
+grid.newpage()
+pushViewport(viewport(layout = grid.layout(1, 2, widths = c(0.5, 0.5))))
+print(g_len_vs_supp, vp = viewport(layout.pos.row = 1, layout.pos.col = 1))
+print(g_len_vs_dose, vp = viewport(layout.pos.row = 1, layout.pos.col = 2))
+```
+The right boxplot suggests that the dose makes significant differences in tooth growth.
+Their interquartile ranges between doses do not even overlap as shown also numerically in the following table:
+
+```{r}
+ToothGrowth %>% group_by(dose) %>% 
+  summarize(
+    quantile_25 = quantile(len, 0.25),
+    quantile_75 = quantile(len, 0.75)
+  )
+```
+
+## Hypothesis tests
+
+### Assumptions
+
+We have $n \le 30$ so we will use the t distribution for our hypothesis tests and when constructing confidence intervals.
+
+We assume that
+
+1. The observations are independent
+2. Pigs are sampled from a nearly normal distribution.
+
+### Differences in supplement types
+
+First, we will check if the observed difference in tooth length means between pigs who received their dose using orange juice and those who received their dose via ascorbic acid is statistically different from 0.
+
+Our conservative choice will be a t-test with unequal variances of the two samples. The table below shows the results:
+
+
+```{r echo=FALSE}
+
+t_diff_supp <- t.test(len ~ supp, ToothGrowth, var.equal = FALSE)
+tidy(t_diff_supp)
+
+```
+
+p-value is `r round(t_diff_supp$p.value, 3)` , larger than 0.05, so we do not reject the null hypothesis. 
+The confidence interval is `r round(t_diff_supp$conf.int[1:2], 3)` and it includes 0.
+
+### Differences in dose levels
+
+We are dealing with 3 different dose levels, so we apply 3 t-tests to cover all factor level combinations. 
+The null hypothesis in all cases is that the average difference in tooth length  is 0.
+
+We show the three 3 pairwise comparisons.
+`null_hypothesis` shows which null hypothesis was used for the respective t-test
+
+```{r echo = FALSE}
+
+pairwise_results <- t.test(ToothGrowth$len[ToothGrowth$dose == 2],
+       ToothGrowth$len[ToothGrowth$dose == 1]) %>% 
+  tidy %>%
+  mutate(
+    null_hypothesis = 'µ2mg - µ1mg = 0'
+  ) %>% 
+  select(9, 1:8)
+  
+
+pairwise_results <- t.test(ToothGrowth$len[ToothGrowth$dose == 2],
+       ToothGrowth$len[ToothGrowth$dose == 0.5]) %>% 
+  tidy %>%
+  mutate(
+    null_hypothesis = 'µ2mg - µ0.5mg = 0'
+  ) %>% 
+  select(9, 1:8) %>%
+  bind_rows(pairwise_results, .)
+
+pairwise_results <- t.test(ToothGrowth$len[ToothGrowth$dose == 1],
+       ToothGrowth$len[ToothGrowth$dose == 0.5]) %>%
+  tidy %>%
+  mutate(
+    null_hypothesis = 'µ1mg - µ0.5mg = 0'
+  ) %>% 
+  select(9, 1:8) %>%
+  bind_rows(pairwise_results, .)
+
+print.data.frame(pairwise_results)
+
+
+```
+
+In all three cases the p-value is smaller than the significance level 0.05 which means we reject the null hypothesis each time. The data provides strong evidence that the average tooth length of guinea pigs is different for each dose level. 
+
+Interpreting the first row of the table for illustriation:
+
+We are 95% confident that the average tooth length of guinea pigs who received a 2mg dose of vitamin C is on average `r round(pairwise_results$conf.low[1], 2)` to `r round(pairwise_results$conf.high[1], 2)` millimeters higher than those who received a 1mg dose.
+
+
+# Conclusions
+
+We were able to show that the observed difference of tooth length mean across supplement types is statistically not different from 0.
+
+However, we were able to highlight the fact that tooth length indeed varies across groups of dose levels and that all of those differences are statistical and pramatically significant. 
+
+A latter study might take into account pairwise t-tests of the different supplement types/dose level combinations.
+
